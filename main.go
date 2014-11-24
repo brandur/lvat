@@ -60,6 +60,7 @@ func basicAuthPassword(r *http.Request) string {
 	}
 
 	credentials := string(buffer)
+	fmt.Printf("credentials %s\n", credentials)
 	i = strings.IndexRune(credentials, ':')
 	if i < 0 {
 		return ""
