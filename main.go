@@ -109,6 +109,8 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 	conn := connPool.Get()
 	defer conn.Close()
 
+	// Move through each type of message stored until there is a match. If
+	// there is never a match, return a 404.
 	for _, conf := range confs {
 		key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, query)
 
