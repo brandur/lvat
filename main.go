@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/bmizerany/lpx"
@@ -42,10 +44,31 @@ func (m *LogMessage) HandleLogfmt(key, value []byte) error {
 	return nil
 }
 
+// come Go 1.4 switch this out for r.BasicAuth ...
+func basicAuthPassword(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+
+	i := strings.IndexRune(auth, ' ')
+	if i < 0 || auth[0:i] != "Basic" {
+		return ""
+	}
+
+	buffer, err := base64.StdEncoding.DecodeString(auth[i+1:])
+	if err != nil {
+		return ""
+	}
+
+	credentials := string(buffer)
+	i = strings.IndexRune(credentials, ':')
+	if i < 0 {
+		return ""
+	}
+
+	return credentials[i+1:]
+}
+
 func handleMessage() {
 	for message := range messagesChan {
-		fmt.Printf("%v\n", message.pairs)
-
 		for _, conf := range confs {
 			if value, ok := message.pairs[conf.key]; ok {
 				err := pushAndTrim(&conf, value, message.data)
@@ -129,7 +152,13 @@ func init() {
 func main() {
 	var err error
 
+	apiKey := os.Getenv("API_KEY")
 	port := os.Getenv("PORT")
+
+	if apiKey == "" {
+		err = fmt.Errorf("Need API_KEY")
+		goto exit
+	}
 	if port == "" {
 		err = fmt.Errorf("Need PORT")
 		goto exit
@@ -145,6 +174,11 @@ func main() {
 	}
 
 	http.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
+		if basicAuthPassword(r) != apiKey {
+			w.WriteHeader(401)
+			return
+		}
+
 		switch r.Method {
 		case "GET":
 			lookupMessages(w, r)
