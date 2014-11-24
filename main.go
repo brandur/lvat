@@ -169,32 +169,7 @@ func main() {
 		goto exit
 	}
 
-	connPool = redis.NewPool(func() (redis.Conn, error) {
-		u, err := url.Parse(redisUrl)
-		if err != nil {
-			return nil, err
-		}
-
-		password := ""
-		passwordProvided := false
-		if u.User != nil {
-			password, passwordProvided = u.User.Password()
-		}
-
-		conn, err := redis.Dial("tcp", u.Host)
-		if err != nil {
-			return nil, err
-		}
-
-		if passwordProvided {
-			if _, err := conn.Do("AUTH", password); err != nil {
-				conn.Close()
-				return nil, err
-			}
-		}
-
-		return conn, err
-	}, Concurrency)
+	connPool = redis.NewPool(redisConnect(redisUrl), Concurrency)
 	defer connPool.Close()
 
 	for i := 0; i < Concurrency; i++ {
@@ -246,4 +221,33 @@ func pushAndTrim(conf *IndexConf, value string, line []byte) error {
 
 	_, err := conn.Do("EXEC")
 	return err
+}
+
+func redisConnect(redisUrl string) func() (redis.Conn, error) {
+	return func() (redis.Conn, error) {
+		u, err := url.Parse(redisUrl)
+		if err != nil {
+			return nil, err
+		}
+
+		password := ""
+		passwordProvided := false
+		if u.User != nil {
+			password, passwordProvided = u.User.Password()
+		}
+
+		conn, err := redis.Dial("tcp", u.Host)
+		if err != nil {
+			return nil, err
+		}
+
+		if passwordProvided {
+			if _, err := conn.Do("AUTH", password); err != nil {
+				conn.Close()
+				return nil, err
+			}
+		}
+
+		return conn, err
+	}
 }
