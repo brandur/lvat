@@ -75,7 +75,7 @@ func handleMessage() {
 				err := pushAndTrim(&conf, value, message.data)
 				if err != nil {
 					fmt.Fprintf(os.Stderr,
-					  "Couldn't push message to Redis: %s\n", err.Error())
+						"Couldn't push message to Redis: %s\n", err.Error())
 				}
 			}
 		}
@@ -216,7 +216,6 @@ func pushAndTrim(conf *IndexConf, value string, line []byte) error {
 	defer conn.Close()
 
 	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
-	fmt.Printf("Setting %s\n", key)
 	conn.Send("MULTI")
 
 	// push the line in and trim the list to its maximum length
