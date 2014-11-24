@@ -61,6 +61,7 @@ func handleMessage() {
 
 func receiveMessage(w http.ResponseWriter, r *http.Request) {
 	lp := lpx.NewReader(bufio.NewReader(r.Body))
+	defer r.Body.Close()
 	for lp.Next() {
 		message := &LogMessage{
 			data:  bytes.TrimSpace(lp.Bytes()),
@@ -85,7 +86,7 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 	conn := connPool.Get()
 	defer conn.Close()
 
-	for _, conf := range(confs) {
+	for _, conf := range confs {
 		key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, query)
 
 		results, err := redis.Values(conn.Do("LRANGE", key, 0, conf.maxSize-1))
@@ -97,7 +98,7 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 		// backwards
 		strings := make([]string, len(results))
 		for i := 0; i < len(results); i++ {
-			j := len(results)-1-i
+			j := len(results) - 1 - i
 			strings[i] = string(results[j].([]byte))
 		}
 
