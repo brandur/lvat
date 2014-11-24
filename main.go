@@ -158,6 +158,11 @@ func main() {
 	port := os.Getenv("PORT")
 	redisUrl := os.Getenv("REDIS_URL")
 
+	// support special alternate configs for now
+	if redisUrl == "" {
+		redisUrl = os.Getenv("OPENREDIS_URL")
+	}
+
 	if apiKey == "" {
 		err = fmt.Errorf("Need API_KEY")
 		goto exit
