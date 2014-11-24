@@ -1,0 +1,22 @@
+{
+	"ImportPath": "github.com/brandur/lvat",
+	"GoVersion": "go1.3.3",
+	"Deps": [
+		{
+			"ImportPath": "github.com/bmizerany/lpx",
+			"Rev": "af85cf24c1567bcb5a2e4c21597cc049eab31f55"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "cca3df8fa0670249a3f746bcc062c69aeba0517c"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "cca3df8fa0670249a3f746bcc062c69aeba0517c"
+		},
+		{
+			"ImportPath": "github.com/kr/logfmt",
+			"Rev": "b84e30acd515aadc4b783ad4ff83aff3299bdfe0"
+		}
+	]
+}
