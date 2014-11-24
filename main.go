@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -18,7 +19,7 @@ import (
 
 const (
 	BufferSize  = 1000
-	Concurrency = 10
+	Concurrency = 50
 	Prefix      = "ltank"
 )
 
@@ -153,6 +154,7 @@ func main() {
 
 	apiKey := os.Getenv("API_KEY")
 	port := os.Getenv("PORT")
+	redisUrl := os.Getenv("REDIS_URL")
 
 	if apiKey == "" {
 		err = fmt.Errorf("Need API_KEY")
@@ -162,9 +164,36 @@ func main() {
 		err = fmt.Errorf("Need PORT")
 		goto exit
 	}
+	if redisUrl == "" {
+		err = fmt.Errorf("Need REDIS_URL")
+		goto exit
+	}
 
 	connPool = redis.NewPool(func() (redis.Conn, error) {
-		return redis.Dial("tcp", ":6379")
+		u, err := url.Parse(redisUrl)
+		if err != nil {
+			return nil, err
+		}
+
+		password := ""
+		passwordProvided := false
+		if u.User != nil {
+			password, passwordProvided = u.User.Password()
+		}
+
+		conn, err := redis.Dial("tcp", u.Host)
+		if err != nil {
+			return nil, err
+		}
+
+		if passwordProvided {
+			if _, err := conn.Do("AUTH", password); err != nil {
+				conn.Close()
+				return nil, err
+			}
+		}
+
+		return conn, err
 	}, Concurrency)
 	defer connPool.Close()
 
