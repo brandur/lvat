@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -61,7 +63,7 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 	lp := lpx.NewReader(bufio.NewReader(r.Body))
 	for lp.Next() {
 		message := &LogMessage{
-			data:  lp.Bytes(),
+			data:  bytes.TrimSpace(lp.Bytes()),
 			pairs: make(map[string]string),
 		}
 		err := logfmt.Unmarshal(message.data, message)
@@ -74,15 +76,41 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 
 func lookupMessages(w http.ResponseWriter, r *http.Request) {
 	query := r.FormValue("query")
-	if query != "" {
+	if query == "" {
 		w.WriteHeader(400)
 		w.Write([]byte("Need `query` parameter."))
 		return
 	}
 
+	conn := connPool.Get()
+	defer conn.Close()
+
 	for _, conf := range(confs) {
-		_ = fmt.Sprintf("%s-%s-%s", Prefix, conf.key, query)
+		key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, query)
+
+		results, err := redis.Values(conn.Do("LRANGE", key, 0, conf.maxSize-1))
+		if err != nil {
+			panic(err)
+		}
+
+		// store elements in reverse because we've stored trace lines in Redis
+		// backwards
+		strings := make([]string, len(results))
+		for i := 0; i < len(results); i++ {
+			j := len(results)-1-i
+			strings[i] = string(results[j].([]byte))
+		}
+
+		resp, err := json.Marshal(strings)
+		if err != nil {
+			panic(err)
+		}
+
+		w.Write(resp)
+		return
 	}
+
+	w.WriteHeader(404)
 }
 
 func init() {
