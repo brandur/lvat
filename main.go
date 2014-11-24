@@ -73,9 +73,8 @@ func handleMessage() {
 			if value, ok := message.pairs[conf.key]; ok {
 				err := pushAndTrim(&conf, value, message.data)
 				if err != nil {
-					// TODO: this will shut down the Goroutine and it will
-					// never come back up
-					panic(err)
+					fmt.Fprintf(os.Stderr,
+					  "Couldn't push message to Redis: %s\n", err.Error())
 				}
 			}
 		}
