@@ -20,7 +20,7 @@ const (
 
 var (
 	confs        []IndexConf
-	conn         redis.Conn
+	connPool     *redis.Pool
 	messagesChan chan *LogMessage
 )
 
@@ -46,7 +46,12 @@ func handleMessage() {
 
 		for _, conf := range confs {
 			if value, ok := message.pairs[conf.key]; ok {
-				pushAndTrim(&conf, value, message.data)
+				err := pushAndTrim(&conf, value, message.data)
+				if err != nil {
+					// TODO: this will shut down the Goroutine and it will
+					// never come back up
+					panic(err)
+				}
 			}
 		}
 	}
@@ -95,17 +100,16 @@ func init() {
 func main() {
 	var err error
 
-	conn, err = redis.Dial("tcp", ":6379")
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		err = fmt.Errorf("Need PORT")
 		goto exit
 	}
+
+	connPool = redis.NewPool(func() (redis.Conn, error) {
+		return redis.Dial("tcp", ":6379")
+	}, Concurrency)
+	defer connPool.Close()
 
 	for i := 0; i < Concurrency; i++ {
 		go handleMessage()
@@ -135,6 +139,9 @@ exit:
 }
 
 func pushAndTrim(conf *IndexConf, value string, line []byte) error {
+	conn := connPool.Get()
+	defer conn.Close()
+
 	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
 	fmt.Printf("Setting %s\n", key)
 	conn.Send("MULTI")
