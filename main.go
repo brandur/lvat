@@ -20,7 +20,7 @@ import (
 const (
 	BufferSize  = 1000
 	Concurrency = 50
-	Prefix      = "ltank"
+	Prefix      = "lvat"
 )
 
 var (
