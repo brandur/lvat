@@ -68,8 +68,8 @@ func basicAuthPassword(r *http.Request) string {
 }
 
 func receiveMessage(w http.ResponseWriter, r *http.Request) {
-	lp := lpx.NewReader(bufio.NewReader(r.Body))
 	defer r.Body.Close()
+	lp := lpx.NewReader(bufio.NewReader(r.Body))
 	for lp.Next() {
 		message := &LogMessage{
 			data:  bytes.TrimSpace(lp.Bytes()),
@@ -77,13 +77,15 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		err := logfmt.Unmarshal(message.data, message)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "Couldn't unmarshal message: " + err.Error())
+			continue
 		}
 		receiver.MessagesChan <- message
 	}
 }
 
 func lookupMessages(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	query := r.FormValue("query")
 	if query == "" {
 		w.WriteHeader(400)
@@ -100,7 +102,9 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 		keyCompressed := buildKeyCompressed(conf.key, query)
 		compressed, err := conn.Do("GET", keyCompressed)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "Couldn't get key: "+err.Error())
+			w.WriteHeader(500)
+			return
 		}
 
 		if compressed == nil {
@@ -115,7 +119,9 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 		} else {
 			reader, err := gzip.NewReader(bytes.NewBuffer(compressed.([]byte)))
 			if err != nil {
-				panic(err)
+				fmt.Fprintf(os.Stderr, "Couldn't decode: "+err.Error())
+				w.WriteHeader(500)
+				return
 			}
 			defer reader.Close()
 			io.Copy(w, reader)
@@ -185,7 +191,7 @@ func main() {
 	})
 	err = http.ListenAndServe(":"+port, nil)
 	if err != nil {
-		panic(err)
+		goto exit
 	}
 
 exit:
