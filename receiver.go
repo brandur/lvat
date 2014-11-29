@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
@@ -54,7 +53,7 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 	conn.Send("LPUSH", key, line)
 	conn.Send("LTRIM", key, 0, conf.maxSize-1)
 
-	conn.Send("EXPIRE", key, time.Now().Add(CompressBuffer))
+	conn.Send("EXPIRE", key, CompressBuffer)
 
 	_, err := conn.Do("EXEC")
 	if err != nil {
@@ -88,7 +87,7 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 	conn.Send("SET", keyCompressed, writeBuffer)
 
 	// bump the key's TTL now that it has a new entry
-	conn.Send("EXPIRE", keyCompressed, time.Now().Add(conf.ttl))
+	conn.Send("EXPIRE", keyCompressed, conf.ttl)
 
 	_, err = conn.Do("EXEC")
 	if err != nil {
