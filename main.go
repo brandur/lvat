@@ -3,11 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,7 +28,7 @@ const (
 var (
 	confs        []IndexConf
 	connPool     *redis.Pool
-	messagesChan chan *LogMessage
+	receiver     *Receiver
 )
 
 type IndexConf struct {
@@ -72,20 +70,6 @@ func basicAuthPassword(r *http.Request) string {
 	return credentials[i+1:]
 }
 
-func handleMessage() {
-	for message := range messagesChan {
-		for _, conf := range confs {
-			if value, ok := message.pairs[conf.key]; ok {
-				err := pushAndTrim(&conf, value, message.data)
-				if err != nil {
-					fmt.Fprintf(os.Stderr,
-						"Couldn't push message to Redis: %s\n", err.Error())
-				}
-			}
-		}
-	}
-}
-
 func receiveMessage(w http.ResponseWriter, r *http.Request) {
 	lp := lpx.NewReader(bufio.NewReader(r.Body))
 	defer r.Body.Close()
@@ -98,7 +82,7 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err)
 		}
-		messagesChan <- message
+		receiver.MessagesChan <- message
 	}
 }
 
@@ -144,8 +128,6 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 func init() {
-	messagesChan = make(chan *LogMessage, BufferSize)
-
 	confs = []IndexConf{
 		IndexConf{
 			key:     "request_id",
@@ -183,9 +165,8 @@ func main() {
 	connPool = redis.NewPool(redisConnect(redisUrl), Concurrency)
 	defer connPool.Close()
 
-	for i := 0; i < Concurrency; i++ {
-		go handleMessage()
-	}
+	receiver = NewReceiver(connPool)
+	receiver.Run()
 
 	http.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		if basicAuthPassword(r) != apiKey {
@@ -213,61 +194,6 @@ exit:
 		fmt.Fprintf(os.Stderr, err.Error()+"\n")
 		defer os.Exit(1)
 	}
-}
-
-func pushAndTrim(conf *IndexConf, value string, line []byte) error {
-	conn := connPool.Get()
-	defer conn.Close()
-
-	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
-	conn.Send("MULTI")
-
-	// push the line in and trim the list to its maximum length
-	conn.Send("LPUSH", key, line)
-	conn.Send("LTRIM", key, 0, conf.maxSize-1)
-
-	conn.Send("EXPIRE", key, time.Now().Add(CompressBuffer))
-
-	_, err := conn.Do("EXEC")
-	if err != nil {
-		return err
-	}
-
-	keyCompressed := key + CompressSuffix
-
-	conn.Send("WATCH", keyCompressed)
-
-	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
-	if err != nil {
-		return err
-	}
-
-	var writeBuffer bytes.Buffer
-	w := gzip.NewWriter(&writeBuffer)
-	defer w.Close()
-
-	// read in whatever we already have compressed and write it out to
-	// the our write buffer
-	r, err := gzip.NewReader(bytes.NewBuffer(compressed))
-	defer r.Close()
-	io.Copy(w, r)
-
-	w.Write([]byte(value + "\n"))
-
-	conn.Send("MULTI")
-
-	// store in the compressed fragments
-	conn.Send("SET", keyCompressed, writeBuffer)
-
-	// bump the key's TTL now that it has a new entry
-	conn.Send("EXPIRE", keyCompressed, time.Now().Add(conf.ttl))
-
-	_, err = conn.Do("EXEC")
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func redisConnect(redisUrl string) func() (redis.Conn, error) {
