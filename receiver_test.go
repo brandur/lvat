@@ -88,7 +88,7 @@ func TestMessageCompression(t *testing.T) {
 	setup(t)
 
 	line := "request_id=req1"
-	err := subject.pushAndTrim(conf, "req1", []byte(line))
+	err := subject.compress(conf, "req1", []byte(line))
 	if err != nil {
 		t.Error(err)
 	}
@@ -153,7 +153,7 @@ func TestMessageCompressionIncrement(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = subject.pushAndTrim(conf, "req1", []byte(line+" line=2"))
+	err = subject.compress(conf, "req1", []byte(line+" line=2"))
 	if err != nil {
 		t.Error(err)
 	}

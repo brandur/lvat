@@ -28,38 +28,11 @@ func (r *Receiver) Run() {
 	}
 }
 
-func (r *Receiver) handleMessage() {
-	for message := range r.MessagesChan {
-		for _, conf := range confs {
-			if value, ok := message.pairs[conf.key]; ok {
-				err := r.pushAndTrim(&conf, value, message.data)
-				if err != nil {
-					fmt.Fprintf(os.Stderr,
-						"Couldn't push message to Redis: %s\n", err.Error())
-				}
-			}
-		}
-	}
-}
-
-func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error {
+func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 	conn := r.connPool.Get()
 	defer conn.Close()
 
 	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
-	conn.Send("MULTI")
-
-	// push the line in and trim the list to its maximum length
-	conn.Send("LPUSH", key, line)
-	conn.Send("LTRIM", key, 0, conf.maxSize-1)
-
-	conn.Send("EXPIRE", key, CompressBuffer)
-
-	_, err := conn.Do("EXEC")
-	if err != nil {
-		return err
-	}
-
 	keyCompressed := key + "-" + CompressSuffix
 
 	conn.Send("WATCH", keyCompressed)
@@ -97,9 +70,42 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 	conn.Send("EXPIRE", keyCompressed, int(conf.ttl))
 
 	_, err = conn.Do("EXEC")
-	if err != nil {
-		return err
-	}
+	return err
+}
 
-	return nil
+func (r *Receiver) handleMessage() {
+	for message := range r.MessagesChan {
+		for _, conf := range confs {
+			if value, ok := message.pairs[conf.key]; ok {
+				err := r.pushAndTrim(&conf, value, message.data)
+				if err != nil {
+					fmt.Fprintf(os.Stderr,
+						"Couldn't push message to Redis: %s\n", err.Error())
+				}
+
+				err = r.compress(&conf, value, message.data)
+				if err != nil {
+					fmt.Fprintf(os.Stderr,
+						"Couldn't compress message to Redis: %s\n", err.Error())
+				}
+			}
+		}
+	}
+}
+
+func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error {
+	conn := r.connPool.Get()
+	defer conn.Close()
+
+	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
+	conn.Send("MULTI")
+
+	// push the line in and trim the list to its maximum length
+	conn.Send("LPUSH", key, line)
+	conn.Send("LTRIM", key, 0, conf.maxSize-1)
+
+	conn.Send("EXPIRE", key, CompressBuffer)
+
+	_, err := conn.Do("EXEC")
+	return err
 }
