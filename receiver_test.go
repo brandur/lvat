@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -25,10 +29,13 @@ func init() {
 }
 
 func TestMessageBuffer(t *testing.T) {
-	setup()
+	setup(t)
 
 	line := "request_id=req1"
-	subject.pushAndTrim(conf, "req1", []byte(line))
+	err := subject.pushAndTrim(conf, "req1", []byte(line))
+	if err != nil {
+		t.Error(err)
+	}
 
 	conn := connPool.Get()
 	defer conn.Close()
@@ -50,8 +57,81 @@ func TestMessageBuffer(t *testing.T) {
 	}
 }
 
+func TestMessageBufferEviction(t *testing.T) {
+	setup(t)
+
+	for i := 0; i < conf.maxSize; i++ {
+		err := subject.pushAndTrim(conf, "req1",
+			[]byte(fmt.Sprintf("request_id=req1 line=%i", i)))
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	conn := connPool.Get()
+	defer conn.Close()
+
+	key := Prefix + "-request_id-req1"
+
+	actual, err := redis.Int(conn.Do("LLEN", key))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if conf.maxSize != actual {
+		t.Errorf("Expected buffer of size %v, got %v\n",
+			conf.maxSize, actual)
+	}
+}
+
 func TestMessageCompression(t *testing.T) {
-	setup()
+	setup(t)
+
+	line := "request_id=req1"
+	err := subject.pushAndTrim(conf, "req1", []byte(line))
+	if err != nil {
+		t.Error(err)
+	}
+
+	conn := connPool.Get()
+	defer conn.Close()
+
+	keyCompressed := Prefix + "-request_id-req1-" + CompressSuffix
+
+	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
+	if err != nil {
+		t.Error(err)
+	}
+
+	reader, err := gzip.NewReader(bytes.NewBuffer(compressed))
+	if err != nil {
+		t.Error(err)
+	}
+	defer reader.Close()
+
+	b, err := ioutil.ReadAll(reader)
+	if err != nil {
+		t.Error(err)
+	}
+
+	actual := string(b)
+	expected := line + "\n"
+	if expected != actual {
+		t.Errorf("Expected buffer '%v', got '%v'\n", line, actual)
+	}
+
+	ttl, err := redis.Int(conn.Do("TTL", keyCompressed))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if ttl < (int(conf.ttl)-10) || ttl > int(conf.ttl) {
+		t.Errorf("Expected ttl %v, got %v\n", int(conf.ttl), ttl)
+	}
+}
+
+func TestMessageCompressionIncrement(t *testing.T) {
+	setup(t)
 }
 
 func redisList(t *testing.T, conn redis.Conn, key string) []string {
@@ -69,6 +149,14 @@ func redisList(t *testing.T, conn redis.Conn, key string) []string {
 	return strings
 }
 
-func setup() {
+func setup(t *testing.T) {
+	conn := connPool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("FLUSHALL")
+	if err != nil {
+		t.Error(err)
+	}
+
 	subject = NewReceiver(connPool)
 }

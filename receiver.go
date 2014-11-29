@@ -64,7 +64,7 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 
 	conn.Send("WATCH", keyCompressed)
 
-	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
+	compressed, err := conn.Do("GET", keyCompressed)
 	if err != nil {
 		return err
 	}
@@ -75,19 +75,26 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 
 	// read in whatever we already have compressed and write it out to
 	// the our write buffer
-	reader, err := gzip.NewReader(bytes.NewBuffer(compressed))
-	defer reader.Close()
-	io.Copy(writer, reader)
+	if compressed != nil {
+		reader, err := gzip.NewReader(bytes.NewBuffer(compressed.([]byte)))
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		io.Copy(writer, reader)
+	}
 
-	writer.Write([]byte(value + "\n"))
+	writer.Write(line)
+	writer.Write([]byte("\n"))
 
 	conn.Send("MULTI")
 
 	// store in the compressed fragments
-	conn.Send("SET", keyCompressed, writeBuffer)
+	writer.Close()
+	conn.Send("SET", keyCompressed, &writeBuffer)
 
 	// bump the key's TTL now that it has a new entry
-	conn.Send("EXPIRE", keyCompressed, conf.ttl)
+	conn.Send("EXPIRE", keyCompressed, int(conf.ttl))
 
 	_, err = conn.Do("EXEC")
 	if err != nil {
