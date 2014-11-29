@@ -158,7 +158,7 @@ func main() {
 		goto exit
 	}
 
-	connPool = redis.NewPool(redisConnect(redisUrl), Concurrency)
+	connPool = redis.NewPool(redisConnect(redisUrl), 10)
 	defer connPool.Close()
 
 	receiver = NewReceiver(connPool)
