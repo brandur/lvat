@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,9 +20,11 @@ import (
 )
 
 const (
-	BufferSize  = 1000
-	Concurrency = 50
-	Prefix      = "lvat"
+	BufferSize     = 1000
+	CompressBuffer = 300
+	CompressSuffix = "gzip"
+	Concurrency    = 50
+	Prefix         = "lvat"
 )
 
 var (
@@ -222,11 +226,48 @@ func pushAndTrim(conf *IndexConf, value string, line []byte) error {
 	conn.Send("LPUSH", key, line)
 	conn.Send("LTRIM", key, 0, conf.maxSize-1)
 
-	// bump the key's TTL now that it has a new entry
-	conn.Send("EXPIRE", key, time.Now().Add(conf.ttl))
+	conn.Send("EXPIRE", key, time.Now().Add(CompressBuffer))
 
 	_, err := conn.Do("EXEC")
-	return err
+	if err != nil {
+		return err
+	}
+
+	keyCompressed := key + CompressSuffix
+
+	conn.Send("WATCH", keyCompressed)
+
+	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
+	if err != nil {
+		return err
+	}
+
+	var writeBuffer bytes.Buffer
+	w := gzip.NewWriter(&writeBuffer)
+	defer w.Close()
+
+	// read in whatever we already have compressed and write it out to
+	// the our write buffer
+	r, err := gzip.NewReader(bytes.NewBuffer(compressed))
+	defer r.Close()
+	io.Copy(w, r)
+
+	w.Write([]byte(value + "\n"))
+
+	conn.Send("MULTI")
+
+	// store in the compressed fragments
+	conn.Send("SET", keyCompressed, writeBuffer)
+
+	// bump the key's TTL now that it has a new entry
+	conn.Send("EXPIRE", keyCompressed, time.Now().Add(conf.ttl))
+
+	_, err = conn.Do("EXEC")
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func redisConnect(redisUrl string) func() (redis.Conn, error) {
