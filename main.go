@@ -21,9 +21,7 @@ import (
 const (
 	BufferSize     = 1000
 	CompressBuffer = 300
-	CompressSuffix = "gzip"
 	Concurrency    = 50
-	Prefix         = "lvat"
 )
 
 var (
@@ -101,7 +99,7 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 	// Move through each type of message stored until there is a match. If
 	// there is never a match, return a 404.
 	for _, conf := range confs {
-		keyCompressed := fmt.Sprintf("%s-%s-%s-%s", Prefix, conf.key, query, CompressSuffix)
+		keyCompressed := buildKey(conf.key, query)
 		compressed, err := conn.Do("GET", keyCompressed)
 		if err != nil {
 			panic(err)

@@ -32,8 +32,7 @@ func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 	conn := r.connPool.Get()
 	defer conn.Close()
 
-	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
-	keyCompressed := key + "-" + CompressSuffix
+	keyCompressed := buildKeyCompressed(conf.key, value)
 
 	conn.Send("WATCH", keyCompressed)
 
@@ -97,7 +96,7 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 	conn := r.connPool.Get()
 	defer conn.Close()
 
-	key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, value)
+	key := buildKey(conf.key, value)
 	conn.Send("MULTI")
 
 	// push the line in and trim the list to its maximum length

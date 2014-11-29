@@ -40,7 +40,7 @@ func TestMessageBuffer(t *testing.T) {
 	conn := connPool.Get()
 	defer conn.Close()
 
-	key := Prefix + "-request_id-req1"
+	key := buildKey("request_id", "req1")
 
 	actual := redisList(t, conn, key)[0]
 	if line != actual {
@@ -71,7 +71,7 @@ func TestMessageBufferEviction(t *testing.T) {
 	conn := connPool.Get()
 	defer conn.Close()
 
-	key := Prefix + "-request_id-req1"
+	key := buildKey("request_id", "req1")
 
 	actual, err := redis.Int(conn.Do("LLEN", key))
 	if err != nil {
@@ -96,7 +96,7 @@ func TestMessageCompression(t *testing.T) {
 	conn := connPool.Get()
 	defer conn.Close()
 
-	keyCompressed := Prefix + "-request_id-req1-" + CompressSuffix
+	keyCompressed := buildKeyCompressed("request_id", "req1")
 
 	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
 	if err != nil {
@@ -145,7 +145,7 @@ func TestMessageCompressionIncrement(t *testing.T) {
 	writer.Write([]byte(line + " line=1"))
 	writer.Write([]byte("\n"))
 
-	keyCompressed := Prefix + "-request_id-req1-" + CompressSuffix
+	keyCompressed := buildKeyCompressed("request_id", "req1")
 
 	writer.Close()
 	_, err := redis.Bytes(conn.Do("SET", keyCompressed, &writeBuffer))
