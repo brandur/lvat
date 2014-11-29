@@ -6,30 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
-	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
 
-var (
-	conf    *IndexConf
-	subject *Receiver
-)
-
-func init() {
-	conf = &IndexConf{
-		key:     "request_id",
-		maxSize: 2,
-		ttl:     1 * time.Hour,
-	}
-	env := map[string]string{
-		"REDIS_URL": "redis://localhost:6379",
-	}
-	connPool = redis.NewPool(redisConnect(env["REDIS_URL"]), 1)
-}
-
 func TestMessageBuffer(t *testing.T) {
 	setup(t)
+
+	subject := NewReceiver(connPool)
 
 	line := "request_id=req1"
 	err := subject.pushAndTrim(conf, "req1", []byte(line))
@@ -60,6 +44,8 @@ func TestMessageBuffer(t *testing.T) {
 func TestMessageBufferEviction(t *testing.T) {
 	setup(t)
 
+	subject := NewReceiver(connPool)
+
 	for i := 0; i < conf.maxSize; i++ {
 		err := subject.pushAndTrim(conf, "req1",
 			[]byte(fmt.Sprintf("request_id=req1 line=%i", i)))
@@ -86,6 +72,8 @@ func TestMessageBufferEviction(t *testing.T) {
 
 func TestMessageCompression(t *testing.T) {
 	setup(t)
+
+	subject := NewReceiver(connPool)
 
 	line := "request_id=req1"
 	err := subject.compress(conf, "req1", []byte(line))
@@ -132,6 +120,8 @@ func TestMessageCompression(t *testing.T) {
 
 func TestMessageCompressionIncrement(t *testing.T) {
 	setup(t)
+
+	subject := NewReceiver(connPool)
 
 	conn := connPool.Get()
 	defer conn.Close()
@@ -194,16 +184,4 @@ func redisList(t *testing.T, conn redis.Conn, key string) []string {
 	}
 
 	return strings
-}
-
-func setup(t *testing.T) {
-	conn := connPool.Get()
-	defer conn.Close()
-
-	_, err := conn.Do("FLUSHALL")
-	if err != nil {
-		t.Error(err)
-	}
-
-	subject = NewReceiver(connPool)
 }

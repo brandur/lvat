@@ -26,6 +26,7 @@ var (
 	confs        []IndexConf
 	connPool     *redis.Pool
 	receiver     *Receiver
+	retriever    *Retriever
 )
 
 type IndexConf struct {
@@ -93,43 +94,33 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn := connPool.Get()
-	defer conn.Close()
-
-	// Move through each type of message stored until there is a match. If
-	// there is never a match, return a 404.
-	for _, conf := range confs {
-		keyCompressed := buildKeyCompressed(conf.key, query)
-		compressed, err := conn.Do("GET", keyCompressed)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Couldn't get key: "+err.Error())
-			w.WriteHeader(500)
-			return
-		}
-
-		if compressed == nil {
-			continue
-		}
-
-		// write directly if the client supports gzip, and a string
-		// directly otherwise
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header().Set("Content-Encoding", "gzip")
-			w.Write(compressed.([]byte))
-		} else {
-			reader, err := gzip.NewReader(bytes.NewBuffer(compressed.([]byte)))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Couldn't decode: "+err.Error())
-				w.WriteHeader(500)
-				return
-			}
-			defer reader.Close()
-			io.Copy(w, reader)
-		}
+	content, ok, err := retriever.Lookup(query)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Couldn't perform lookup: "+err.Error())
+		w.WriteHeader(500)
 		return
 	}
 
-	w.WriteHeader(404)
+	if !ok {
+		w.WriteHeader(404)
+		return
+	}
+
+	// write directly if the client supports gzip, and a string
+	// directly otherwise
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Write(content)
+	} else {
+		reader, err := gzip.NewReader(bytes.NewBuffer(content))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Couldn't unpack: "+err.Error())
+			w.WriteHeader(500)
+			return
+		}
+		defer reader.Close()
+		io.Copy(w, reader)
+	}
 }
 
 func init() {
@@ -172,6 +163,8 @@ func main() {
 
 	receiver = NewReceiver(connPool)
 	receiver.Run()
+
+	retriever = NewRetriever(confs, connPool)
 
 	http.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		if basicAuthPassword(r) != apiKey {
