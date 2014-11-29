@@ -10,6 +10,11 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
+const (
+	BufferSize     = 1000
+	CompressBuffer = 300
+)
+
 type Receiver struct {
 	MessagesChan chan *LogMessage
 	connPool     *redis.Pool

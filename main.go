@@ -19,9 +19,7 @@ import (
 )
 
 const (
-	BufferSize     = 1000
-	CompressBuffer = 300
-	Concurrency    = 50
+	Concurrency = 50
 )
 
 var (
