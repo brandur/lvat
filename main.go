@@ -97,7 +97,7 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 	// Move through each type of message stored until there is a match. If
 	// there is never a match, return a 404.
 	for _, conf := range confs {
-		keyCompressed := buildKey(conf.key, query)
+		keyCompressed := buildKeyCompressed(conf.key, query)
 		compressed, err := conn.Do("GET", keyCompressed)
 		if err != nil {
 			panic(err)
@@ -110,6 +110,7 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 		// write directly if the client supports gzip, and a string
 		// directly otherwise
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Type", "gzip")
 			w.Write(compressed.([]byte))
 		} else {
 			reader, err := gzip.NewReader(bytes.NewBuffer(compressed.([]byte)))
