@@ -3,9 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -100,27 +101,28 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 	// Move through each type of message stored until there is a match. If
 	// there is never a match, return a 404.
 	for _, conf := range confs {
-		key := fmt.Sprintf("%s-%s-%s", Prefix, conf.key, query)
-
-		results, err := redis.Values(conn.Do("LRANGE", key, 0, conf.maxSize-1))
+		keyCompressed := fmt.Sprintf("%s-%s-%s-%s", Prefix, conf.key, query, CompressSuffix)
+		compressed, err := conn.Do("GET", keyCompressed)
 		if err != nil {
 			panic(err)
 		}
 
-		// store elements in reverse because we've stored trace lines in Redis
-		// backwards
-		strings := make([]string, len(results))
-		for i := 0; i < len(results); i++ {
-			j := len(results) - 1 - i
-			strings[i] = string(results[j].([]byte))
+		if compressed == nil {
+			continue
 		}
 
-		resp, err := json.Marshal(strings)
-		if err != nil {
-			panic(err)
+		// write directly if the client supports gzip, and a string
+		// directly otherwise
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Write(compressed.([]byte))
+		} else {
+			reader, err := gzip.NewReader(bytes.NewBuffer(compressed.([]byte)))
+			if err != nil {
+				panic(err)
+			}
+			defer reader.Close()
+			io.Copy(w, reader)
 		}
-
-		w.Write(resp)
 		return
 	}
 
