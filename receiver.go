@@ -13,6 +13,7 @@ import (
 const (
 	BufferSize     = 1000
 	CompressBuffer = 300
+	LockRetries    = 5
 )
 
 type Receiver struct {
@@ -34,6 +35,23 @@ func (r *Receiver) Run() {
 }
 
 func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
+	var err error
+	// We use an optimistic locking strategy to set our compressed traces
+	// by assuming that another routing/process isn't trying to set the
+	// same value. On a locking failure, try again a number of times
+	// before giving up.
+	for i := 0; i < LockRetries; i++ {
+		ok, err := r.compressOptimistically(conf, value, line)
+		if err == nil && !ok {
+			fmt.Printf("WATCH failed; retrying set")
+			continue
+		}
+		break
+	}
+	return err
+}
+
+func (r *Receiver) compressOptimistically(conf *IndexConf, value string, line []byte) (bool, error) {
 	conn := r.connPool.Get()
 	defer conn.Close()
 
@@ -43,7 +61,7 @@ func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 
 	compressed, err := conn.Do("GET", keyCompressed)
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	var writeBuffer bytes.Buffer
@@ -55,7 +73,7 @@ func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 	if compressed != nil {
 		reader, err := gzip.NewReader(bytes.NewBuffer(compressed.([]byte)))
 		if err != nil {
-			return err
+			return true, err
 		}
 		defer reader.Close()
 		io.Copy(writer, reader)
@@ -73,8 +91,13 @@ func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 	// bump the key's TTL now that it has a new entry
 	conn.Send("EXPIRE", keyCompressed, int(conf.ttl))
 
-	_, err = conn.Do("EXEC")
-	return err
+	res, err := conn.Do("EXEC")
+	// if the WATCH failed, then EXEC will return nil instead of
+	// individual execution results
+	if res == nil {
+		return false, nil
+	}
+	return true, err
 }
 
 func (r *Receiver) handleMessage() {
