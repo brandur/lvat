@@ -44,6 +44,16 @@ func (m *LogMessage) HandleLogfmt(key, value []byte) error {
 	return nil
 }
 
+func init() {
+	confs = []*IndexConf{
+		&IndexConf{
+			key:     "request_id",
+			maxSize: 500,
+			ttl:     48 * time.Hour,
+		},
+	}
+}
+
 func receiveMessage(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -105,16 +115,6 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 		}
 		defer reader.Close()
 		io.Copy(w, reader)
-	}
-}
-
-func init() {
-	confs = []*IndexConf{
-		&IndexConf{
-			key:     "request_id",
-			maxSize: 500,
-			ttl:     48 * time.Hour,
-		},
 	}
 }
 
