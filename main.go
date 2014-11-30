@@ -87,12 +87,12 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, message)
 	}
 
-	printVerbose("queue_messages num=%i\n", len(messages))
+	printVerbose("queue_messages num=%v\n", len(messages))
 
 	// send through the whole set of messages at once to reduce the
 	// probability of inter-routine contention
 	receiver.MessagesChan <- messages
-	printVerbose("queue size=%i\n", len(receiver.MessagesChan))
+	printVerbose("queue size=%v\n", len(receiver.MessagesChan))
 }
 
 func lookupMessages(w http.ResponseWriter, r *http.Request) {
