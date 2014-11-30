@@ -19,15 +19,15 @@ import (
 )
 
 const (
-	Concurrency = 100
+	Concurrency = 40
 )
 
 var (
-	confs        []*IndexConf
-	connPool     *redis.Pool
-	receiver     *Receiver
-	retriever    *Retriever
-	verbose      bool
+	confs     []*IndexConf
+	connPool  *redis.Pool
+	receiver  *Receiver
+	retriever *Retriever
+	verbose   bool
 )
 
 type IndexConf struct {
@@ -81,7 +81,7 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		err := logfmt.Unmarshal(message.data, message)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Couldn't unmarshal message: " + err.Error())
+			fmt.Fprintf(os.Stderr, "Couldn't unmarshal message: "+err.Error())
 			continue
 		}
 		messages = append(messages, message)
@@ -168,7 +168,7 @@ func main() {
 		goto exit
 	}
 
-    if os.Getenv("VERBOSE") == "true" {
+	if os.Getenv("VERBOSE") == "true" {
 		verbose = true
 	}
 
