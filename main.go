@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	Concurrency = 1
+	Concurrency = 20
 )
 
 var (
@@ -164,7 +164,7 @@ func main() {
 		goto exit
 	}
 
-	connPool = redis.NewPool(redisConnect(redisUrl), 10)
+	connPool = redis.NewPool(redisConnect(redisUrl), Concurrency)
 	defer connPool.Close()
 
 	receiver = NewReceiver(connPool)
