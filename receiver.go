@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BufferSize     = 1000
+	BufferSize     = 200
 	CompressBuffer = 300
 	LockRetries    = 5
 )
@@ -43,7 +43,7 @@ func (r *Receiver) compress(conf *IndexConf, value string, lines [][]byte) error
 	for i := 0; i < LockRetries; i++ {
 		ok, err := r.compressOptimistically(conf, value, lines)
 		if err == nil && !ok {
-			fmt.Printf("WATCH failed; retrying set\n")
+			fmt.Printf("locking_failed attempt=%v\n", i)
 			continue
 		}
 		break
