@@ -22,6 +22,8 @@ type Receiver struct {
 	connPool     *redis.Pool
 }
 
+type StorageGroup map[*IndexConf]map[string][][]byte
+
 func NewReceiver(confs []*IndexConf, connPool *redis.Pool) *Receiver {
 	return &Receiver{
 		MessagesChan: make(chan []*LogMessage, BufferSize),
@@ -34,6 +36,35 @@ func (r *Receiver) Run() {
 	for i := 0; i < Concurrency; i++ {
 		go r.handleMessage()
 	}
+}
+
+// Batch lines up as groups before inserting anything so that we can
+// minimize the number of Redis transactions that we have to perform.
+//
+// Batches of messages from Logplex are not guaranteed by any means to
+// all originate from a single request or even be related at all, but in
+// practice they are more often than not.
+func (r *Receiver) buildGroups(messages []*LogMessage) StorageGroup {
+	groups := make(StorageGroup)
+
+	for _, message := range messages {
+		for _, conf := range r.confs {
+			if value, ok := message.pairs[conf.key]; ok {
+				if _, ok = groups[conf]; !ok {
+					groups[conf] = make(map[string][][]byte)
+				}
+
+				if _, ok = groups[conf][value]; !ok {
+					groups[conf][value] = make([][]byte, 0)
+				}
+
+				groups[conf][value] =
+					append(groups[conf][value], message.data)
+			}
+		}
+	}
+
+	return groups
 }
 
 func (r *Receiver) compress(conf *IndexConf, value string, lines [][]byte) error {
@@ -106,33 +137,7 @@ func (r *Receiver) compressOptimistically(conf *IndexConf, value string, lines [
 
 func (r *Receiver) handleMessage() {
 	for messages := range r.MessagesChan {
-		groups := make(map[*IndexConf]map[string][][]byte)
-
-		// Batch lines up as groups before inserting anything so that we
-		// can minimize the number of Redis transactions that we have to
-		// perform.
-		//
-		// Batches of messages from Logplex are not guaranteed by any
-		// means to all originate from a single request or even be
-		// related at all, but in practice they are more often than not.
-		for _, message := range messages {
-			for _, conf := range r.confs {
-				if value, ok := message.pairs[conf.key]; ok {
-					if _, ok = groups[conf]; !ok {
-						groups[conf] = make(map[string][][]byte)
-					}
-
-					if _, ok = groups[conf][value]; !ok {
-						groups[conf][value] = make([][]byte, 0)
-					}
-
-					groups[conf][value] =
-						append(groups[conf][value], message.data)
-				}
-			}
-		}
-
-		for conf, confGroups := range groups {
+		for conf, confGroups := range r.buildGroups(messages) {
 			for value, lines := range confGroups {
 				printVerbose("handle_group key=%v value=%v size=%v\n",
 					conf.key, value, len(lines))
