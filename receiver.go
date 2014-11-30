@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BufferSize     = 1000
+	BufferSize     = 5000
 	CompressBuffer = 300
 	LockRetries    = 5
 )

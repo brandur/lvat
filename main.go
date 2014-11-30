@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	Concurrency = 20
+	Concurrency = 100
 )
 
 var (
