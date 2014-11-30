@@ -83,13 +83,14 @@ func (r *Receiver) compress(conf *IndexConf, value string, lines [][]byte) error
 	for i := 0; i < LockRetries; i++ {
 		ok, err := r.compressOptimistically(conf, value, lines)
 		if err == nil && !ok {
-			fmt.Printf("transaction_failed attempt=%v\n", i)
-
 			// sleep for a random small amount of time to help avoid
 			// contention problems with other parallel processes that are
 			// also trying to push data to this key
-			time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
+			sleepDuration := time.Duration(rand.Intn(10)) * time.Millisecond
 
+			fmt.Printf("transaction_failed attempt=%v sleep=%v\n",
+				i, sleepDuration)
+			time.Sleep(sleepDuration)
 			continue
 		}
 		break
