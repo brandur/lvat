@@ -55,7 +55,7 @@ func (r *Receiver) buildGroups(messages []*LogMessage) StorageGroup {
 				}
 
 				if _, ok = groups[conf][value]; !ok {
-					groups[conf][value] = make([][]byte, 0)
+					groups[conf][value] = make([][]byte, 0, 1)
 				}
 
 				groups[conf][value] =

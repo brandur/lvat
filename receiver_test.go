@@ -9,6 +9,56 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
+func TestBuildGroups(t *testing.T) {
+	setup(t)
+
+	subject := NewReceiver([]*IndexConf{conf}, connPool)
+
+	messages := []*LogMessage{
+		&LogMessage{
+			data: []byte("request_id=req1 line=1"),
+			pairs: map[string]string{
+				"request_id": "req1",
+				"line": "1",
+			},
+		},
+		&LogMessage{
+			data: []byte("request_id=req1 line=2"),
+			pairs: map[string]string{
+				"request_id": "req1",
+				"line": "2",
+			},
+		},
+		&LogMessage{
+			data: []byte("request_id=req2 line=1"),
+			pairs: map[string]string{
+				"request_id": "req2",
+				"line": "1",
+			},
+		},
+	}
+
+	groups := subject.buildGroups(messages)
+	if len(groups) != 1 {
+		t.Errorf("Expected group length %v, got %v\n", 1, len(groups))
+	}
+
+	confGroup := groups[conf]
+	if len(confGroup) != 2 {
+		t.Errorf("Expected conf group length %v, got %v\n", 2, len(confGroup))
+	}
+		
+	lines := confGroup["req1"]
+	if len(lines) != 2 {
+		t.Errorf("Expected req1 lines length %v, got %v\n", 2, len(lines))
+	}
+		
+	lines = confGroup["req2"]
+	if len(lines) != 1 {
+		t.Errorf("Expected req1 lines length %v, got %v\n", 1, len(lines))
+	}
+}
+
 func TestMessageCompression(t *testing.T) {
 	setup(t)
 
