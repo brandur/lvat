@@ -70,6 +70,8 @@ func basicAuthPassword(r *http.Request) string {
 
 func receiveMessage(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	messages := make([]*LogMessage, 0)
 	lp := lpx.NewReader(bufio.NewReader(r.Body))
 	for lp.Next() {
 		message := &LogMessage{
@@ -81,8 +83,12 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(os.Stderr, "Couldn't unmarshal message: " + err.Error())
 			continue
 		}
-		receiver.MessagesChan <- message
+		messages = append(messages, message)
 	}
+
+	// send through the whole set of messages at once to reduce the
+	// probability of inter-routine contention
+	receiver.MessagesChan <- messages
 }
 
 func lookupMessages(w http.ResponseWriter, r *http.Request) {

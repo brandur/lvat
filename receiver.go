@@ -17,13 +17,13 @@ const (
 )
 
 type Receiver struct {
-	MessagesChan chan *LogMessage
+	MessagesChan chan []*LogMessage
 	connPool     *redis.Pool
 }
 
 func NewReceiver(connPool *redis.Pool) *Receiver {
 	return &Receiver{
-		MessagesChan: make(chan *LogMessage, BufferSize),
+		MessagesChan: make(chan []*LogMessage, BufferSize),
 		connPool:     connPool,
 	}
 }
@@ -101,19 +101,21 @@ func (r *Receiver) compressOptimistically(conf *IndexConf, value string, line []
 }
 
 func (r *Receiver) handleMessage() {
-	for message := range r.MessagesChan {
-		for _, conf := range confs {
-			if value, ok := message.pairs[conf.key]; ok {
-				err := r.pushAndTrim(&conf, value, message.data)
-				if err != nil {
-					fmt.Fprintf(os.Stderr,
-						"Couldn't push message to Redis: %s\n", err.Error())
-				}
+	for messages := range r.MessagesChan {
+		for _, message := range messages {
+			for _, conf := range confs {
+				if value, ok := message.pairs[conf.key]; ok {
+					err := r.pushAndTrim(&conf, value, message.data)
+					if err != nil {
+						fmt.Fprintf(os.Stderr,
+							"Couldn't push message to Redis: %s\n", err.Error())
+					}
 
-				err = r.compress(&conf, value, message.data)
-				if err != nil {
-					fmt.Fprintf(os.Stderr,
-						"Couldn't compress message to Redis: %s\n", err.Error())
+					err = r.compress(&conf, value, message.data)
+					if err != nil {
+						fmt.Fprintf(os.Stderr,
+							"Couldn't compress message to Redis: %s\n", err.Error())
+					}
 				}
 			}
 		}
