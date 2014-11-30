@@ -73,9 +73,9 @@ func TestMessageCompression(t *testing.T) {
 	conn := connPool.Get()
 	defer conn.Close()
 
-	keyCompressed := buildKeyCompressed("request_id", "req1")
+	key := buildKey("request_id", "req1")
 
-	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
+	compressed, err := redis.Bytes(conn.Do("GET", key))
 	if err != nil {
 		t.Error(err)
 	}
@@ -97,7 +97,7 @@ func TestMessageCompression(t *testing.T) {
 		t.Errorf("Expected buffer '%v', got '%v'\n", expected, actual)
 	}
 
-	ttl, err := redis.Int(conn.Do("TTL", keyCompressed))
+	ttl, err := redis.Int(conn.Do("TTL", key))
 	if err != nil {
 		t.Error(err)
 	}
@@ -124,10 +124,10 @@ func TestMessageCompressionIncrement(t *testing.T) {
 	writer.Write([]byte(line + " line=1"))
 	writer.Write([]byte("\n"))
 
-	keyCompressed := buildKeyCompressed("request_id", "req1")
+	key := buildKey("request_id", "req1")
 
 	writer.Close()
-	_, err := redis.Bytes(conn.Do("SET", keyCompressed, &writeBuffer))
+	_, err := redis.Bytes(conn.Do("SET", key, &writeBuffer))
 	if err != nil {
 		t.Error(err)
 	}
@@ -137,7 +137,7 @@ func TestMessageCompressionIncrement(t *testing.T) {
 		t.Error(err)
 	}
 
-	compressed, err := redis.Bytes(conn.Do("GET", keyCompressed))
+	compressed, err := redis.Bytes(conn.Do("GET", key))
 	if err != nil {
 		t.Error(err)
 	}

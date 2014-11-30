@@ -21,8 +21,8 @@ func (r *Retriever) Lookup(query string) ([]byte, bool, error) {
 	// Move through each type of message stored until there is a match. If
 	// there is never a match, return a 404.
 	for _, conf := range r.confs {
-		keyCompressed := buildKeyCompressed(conf.key, query)
-		compressed, err := conn.Do("GET", keyCompressed)
+		key := buildKey(conf.key, query)
+		compressed, err := conn.Do("GET", key)
 		if err != nil {
 			return nil, false, err
 		}

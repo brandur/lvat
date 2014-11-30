@@ -93,11 +93,11 @@ func (r *Receiver) compressOptimistically(conf *IndexConf, value string, lines [
 	conn := r.connPool.Get()
 	defer conn.Close()
 
-	keyCompressed := buildKeyCompressed(conf.key, value)
+	key := buildKey(conf.key, value)
 
-	conn.Send("WATCH", keyCompressed)
+	conn.Send("WATCH", key)
 
-	compressed, err := conn.Do("GET", keyCompressed)
+	compressed, err := conn.Do("GET", key)
 	if err != nil {
 		return true, err
 	}
@@ -126,10 +126,10 @@ func (r *Receiver) compressOptimistically(conf *IndexConf, value string, lines [
 
 	// store in the compressed fragments
 	writer.Close()
-	conn.Send("SET", keyCompressed, &writeBuffer)
+	conn.Send("SET", key, &writeBuffer)
 
 	// bump the key's TTL now that it has a new entry
-	conn.Send("EXPIRE", keyCompressed, int(conf.ttl))
+	conn.Send("EXPIRE", key, int(conf.ttl))
 
 	res, err := conn.Do("EXEC")
 	// if the WATCH failed, then EXEC will return nil instead of
