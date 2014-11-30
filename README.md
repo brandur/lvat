@@ -19,7 +19,3 @@ export PORT=5000
 ```
 
 Note that Redis should probably be running as a cache with `maxmemorypolicy = allkeys-lru`.
-
-## Field Notes
-
-* Based on some rough calculations, an r3.large instance worth of memory will be able to store roughly 2.5 hours worth of log traces from the produciton API. This number could be vastly improved with in-store compression.
