@@ -18,12 +18,14 @@ const (
 
 type Receiver struct {
 	MessagesChan chan []*LogMessage
+	confs        []*IndexConf
 	connPool     *redis.Pool
 }
 
-func NewReceiver(connPool *redis.Pool) *Receiver {
+func NewReceiver(confs []*IndexConf, connPool *redis.Pool) *Receiver {
 	return &Receiver{
 		MessagesChan: make(chan []*LogMessage, BufferSize),
+		confs:        confs,
 		connPool:     connPool,
 	}
 }
@@ -114,7 +116,7 @@ func (r *Receiver) handleMessage() {
 		// means to all originate from a single request or even be
 		// related at all, but in practice they are more often than not.
 		for _, message := range messages {
-			for _, conf := range confs {
+			for _, conf := range r.confs {
 				if value, ok := message.pairs[conf.key]; ok {
 					if _, ok = groups[conf]; !ok {
 						groups[conf] = make(map[string][][]byte)

@@ -10,7 +10,7 @@ import (
 func TestLookup(t *testing.T) {
 	setup(t)
 
-	receiver := NewReceiver(connPool)
+	receiver := NewReceiver([]*IndexConf{conf}, connPool)
 	retriever := NewRetriever([]*IndexConf{conf}, connPool)
 
 	_, ok, err := retriever.Lookup("req1")

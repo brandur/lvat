@@ -12,7 +12,7 @@ import (
 func TestMessageCompression(t *testing.T) {
 	setup(t)
 
-	subject := NewReceiver(connPool)
+	subject := NewReceiver([]*IndexConf{conf}, connPool)
 
 	line := "request_id=req1"
 	err := subject.compress(conf, "req1", [][]byte{[]byte(line)})
@@ -60,7 +60,7 @@ func TestMessageCompression(t *testing.T) {
 func TestMessageCompressionIncrement(t *testing.T) {
 	setup(t)
 
-	subject := NewReceiver(connPool)
+	subject := NewReceiver([]*IndexConf{conf}, connPool)
 
 	conn := connPool.Get()
 	defer conn.Close()
