@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -52,6 +53,9 @@ func init() {
 			ttl:     48 * time.Hour,
 		},
 	}
+
+	// seed the random number generator
+	rand.Seed(time.Now().Unix())
 }
 
 func receiveMessage(w http.ResponseWriter, r *http.Request) {

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"math/rand"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
@@ -82,6 +84,12 @@ func (r *Receiver) compress(conf *IndexConf, value string, lines [][]byte) error
 		ok, err := r.compressOptimistically(conf, value, lines)
 		if err == nil && !ok {
 			fmt.Printf("transaction_failed attempt=%v\n", i)
+
+			// sleep for a random small amount of time to help avoid
+			// contention problems with other parallel processes that are
+			// also trying to push data to this key
+			time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
+
 			continue
 		}
 		break
