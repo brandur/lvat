@@ -43,7 +43,7 @@ func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 	for i := 0; i < LockRetries; i++ {
 		ok, err := r.compressOptimistically(conf, value, line)
 		if err == nil && !ok {
-			fmt.Printf("WATCH failed; retrying set")
+			fmt.Printf("WATCH failed; retrying set\n")
 			continue
 		}
 		break
