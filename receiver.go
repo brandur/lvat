@@ -55,6 +55,8 @@ func (r *Receiver) buildGroups(messages []*LogMessage) StorageGroup {
 					groups[conf] = make(map[string][][]byte)
 				}
 
+				// assume that multiple values split by commas are
+				// different identifiers that should be stored separately
 				for _, subValue := range strings.Split(value, ",") {
 					if _, ok = groups[conf][subValue]; !ok {
 						groups[conf][subValue] = make([][]byte, 0, 1)
