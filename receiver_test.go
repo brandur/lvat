@@ -16,7 +16,7 @@ func TestMessageBuffer(t *testing.T) {
 	subject := NewReceiver(connPool)
 
 	line := "request_id=req1"
-	err := subject.pushAndTrim(conf, "req1", []byte(line))
+	err := subject.pushAndTrim(conf, "req1", [][]byte{[]byte(line)})
 	if err != nil {
 		t.Error(err)
 	}
@@ -48,7 +48,7 @@ func TestMessageBufferEviction(t *testing.T) {
 
 	for i := 0; i < conf.maxSize; i++ {
 		err := subject.pushAndTrim(conf, "req1",
-			[]byte(fmt.Sprintf("request_id=req1 line=%i", i)))
+			[][]byte{[]byte(fmt.Sprintf("request_id=req1 line=%i", i))})
 		if err != nil {
 			t.Error(err)
 		}
@@ -76,7 +76,7 @@ func TestMessageCompression(t *testing.T) {
 	subject := NewReceiver(connPool)
 
 	line := "request_id=req1"
-	err := subject.compress(conf, "req1", []byte(line))
+	err := subject.compress(conf, "req1", [][]byte{[]byte(line)})
 	if err != nil {
 		t.Error(err)
 	}
@@ -143,7 +143,7 @@ func TestMessageCompressionIncrement(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = subject.compress(conf, "req1", []byte(line+" line=2"))
+	err = subject.compress(conf, "req1", [][]byte{[]byte(line + " line=2")})
 	if err != nil {
 		t.Error(err)
 	}

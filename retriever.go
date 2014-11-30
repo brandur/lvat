@@ -3,11 +3,11 @@ package main
 import "github.com/garyburd/redigo/redis"
 
 type Retriever struct {
-	confs    []IndexConf
+	confs    []*IndexConf
 	connPool *redis.Pool
 }
 
-func NewRetriever(confs []IndexConf, connPool *redis.Pool) *Retriever {
+func NewRetriever(confs []*IndexConf, connPool *redis.Pool) *Retriever {
 	return &Retriever{
 		confs:    confs,
 		connPool: connPool,

@@ -11,7 +11,7 @@ func TestLookup(t *testing.T) {
 	setup(t)
 
 	receiver := NewReceiver(connPool)
-	retriever := NewRetriever([]IndexConf{*conf}, connPool)
+	retriever := NewRetriever([]*IndexConf{conf}, connPool)
 
 	_, ok, err := retriever.Lookup("req1")
 	if err != nil {
@@ -22,7 +22,7 @@ func TestLookup(t *testing.T) {
 	}
 
 	line := "request_id=req1"
-	err = receiver.compress(conf, "req1", []byte(line))
+	err = receiver.compress(conf, "req1", [][]byte{[]byte(line)})
 	if err != nil {
 		t.Error(err)
 	}

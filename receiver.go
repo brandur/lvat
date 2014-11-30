@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BufferSize     = 5000
+	BufferSize     = 1000
 	CompressBuffer = 300
 	LockRetries    = 5
 )
@@ -34,14 +34,14 @@ func (r *Receiver) Run() {
 	}
 }
 
-func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
+func (r *Receiver) compress(conf *IndexConf, value string, lines [][]byte) error {
 	var err error
 	// We use an optimistic locking strategy to set our compressed traces
 	// by assuming that another routing/process isn't trying to set the
 	// same value. On a locking failure, try again a number of times
 	// before giving up.
 	for i := 0; i < LockRetries; i++ {
-		ok, err := r.compressOptimistically(conf, value, line)
+		ok, err := r.compressOptimistically(conf, value, lines)
 		if err == nil && !ok {
 			fmt.Printf("WATCH failed; retrying set\n")
 			continue
@@ -51,7 +51,7 @@ func (r *Receiver) compress(conf *IndexConf, value string, line []byte) error {
 	return err
 }
 
-func (r *Receiver) compressOptimistically(conf *IndexConf, value string, line []byte) (bool, error) {
+func (r *Receiver) compressOptimistically(conf *IndexConf, value string, lines [][]byte) (bool, error) {
 	conn := r.connPool.Get()
 	defer conn.Close()
 
@@ -79,8 +79,10 @@ func (r *Receiver) compressOptimistically(conf *IndexConf, value string, line []
 		io.Copy(writer, reader)
 	}
 
-	writer.Write(line)
-	writer.Write([]byte("\n"))
+	for _, line := range lines {
+		writer.Write(line)
+		writer.Write([]byte("\n"))
+	}
 
 	conn.Send("MULTI")
 
@@ -102,27 +104,50 @@ func (r *Receiver) compressOptimistically(conf *IndexConf, value string, line []
 
 func (r *Receiver) handleMessage() {
 	for messages := range r.MessagesChan {
+		groups := make(map[*IndexConf]map[string][][]byte)
+
+		// batch lines up as groups before inserting anything so that we
+		// can minimize the number of Redis transactions that we have to
+		// perform
 		for _, message := range messages {
 			for _, conf := range confs {
 				if value, ok := message.pairs[conf.key]; ok {
-					err := r.pushAndTrim(&conf, value, message.data)
-					if err != nil {
-						fmt.Fprintf(os.Stderr,
-							"Couldn't push message to Redis: %s\n", err.Error())
+					if _, ok = groups[conf]; !ok {
+						groups[conf] = make(map[string][][]byte)
 					}
 
-					err = r.compress(&conf, value, message.data)
-					if err != nil {
-						fmt.Fprintf(os.Stderr,
-							"Couldn't compress message to Redis: %s\n", err.Error())
+					if _, ok = groups[conf][value]; !ok {
+						groups[conf][value] = make([][]byte, 0)
 					}
+
+					groups[conf][value] =
+						append(groups[conf][value], message.data)
+				}
+			}
+		}
+
+		for conf, confGroups := range groups {
+			for value, lines := range confGroups {
+				printVerbose("handle_group key=%v value=%v size=%v\n",
+					conf.key, value, len(lines))
+
+				err := r.pushAndTrim(conf, value, lines)
+				if err != nil {
+					fmt.Fprintf(os.Stderr,
+						"Couldn't push message to Redis: %s\n", err.Error())
+				}
+
+				err = r.compress(conf, value, lines)
+				if err != nil {
+					fmt.Fprintf(os.Stderr,
+						"Couldn't compress message to Redis: %s\n", err.Error())
 				}
 			}
 		}
 	}
 }
 
-func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error {
+func (r *Receiver) pushAndTrim(conf *IndexConf, value string, lines [][]byte) error {
 	conn := r.connPool.Get()
 	defer conn.Close()
 
@@ -130,7 +155,10 @@ func (r *Receiver) pushAndTrim(conf *IndexConf, value string, line []byte) error
 	conn.Send("MULTI")
 
 	// push the line in and trim the list to its maximum length
-	conn.Send("LPUSH", key, line)
+	for _, line := range lines {
+		conn.Send("LPUSH", key, line)
+	}
+
 	conn.Send("LTRIM", key, 0, conf.maxSize-1)
 
 	conn.Send("EXPIRE", key, CompressBuffer)

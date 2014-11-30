@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	confs        []IndexConf
+	confs        []*IndexConf
 	connPool     *redis.Pool
 	receiver     *Receiver
 	retriever    *Retriever
@@ -134,8 +134,8 @@ func lookupMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 func init() {
-	confs = []IndexConf{
-		IndexConf{
+	confs = []*IndexConf{
+		&IndexConf{
 			key:     "request_id",
 			maxSize: 500,
 			ttl:     48 * time.Hour,
