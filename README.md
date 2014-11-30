@@ -15,7 +15,7 @@ godep go build
 redis-server &
 
 export API_KEY=my-secret
-export REDIS_URL=redis://:pass@localhost:6379
+export REDIS_URL=redis://localhost:6379
 export PORT=5000
 ./lvat
 ```
