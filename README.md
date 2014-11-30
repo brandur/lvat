@@ -18,11 +18,7 @@ export PORT=5000
 ./lvat
 ```
 
-## Todo
-
-* "Couldn't push message to Redis: OOM command not allowed when used memory > 'maxmemory'."
-* Multi-request IDs: ltank-request_id-aa693837-a0f6-414f-8d92-1d306fc9eca9,2c8e202e-fc2e-4265-8b3e-eb5bbe9f36c7
-* Gzipped responses.
+Note that Redis should probably be running as a cache with `maxmemorypolicy = allkeys-lru`.
 
 ## Field Notes
 
