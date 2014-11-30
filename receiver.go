@@ -106,9 +106,13 @@ func (r *Receiver) handleMessage() {
 	for messages := range r.MessagesChan {
 		groups := make(map[*IndexConf]map[string][][]byte)
 
-		// batch lines up as groups before inserting anything so that we
+		// Batch lines up as groups before inserting anything so that we
 		// can minimize the number of Redis transactions that we have to
-		// perform
+		// perform.
+		//
+		// Batches of messages from Logplex are not guaranteed by any
+		// means to all originate from a single request or even be
+		// related at all, but in practice they are more often than not.
 		for _, message := range messages {
 			for _, conf := range confs {
 				if value, ok := message.pairs[conf.key]; ok {
@@ -131,13 +135,7 @@ func (r *Receiver) handleMessage() {
 				printVerbose("handle_group key=%v value=%v size=%v\n",
 					conf.key, value, len(lines))
 
-				err := r.pushAndTrim(conf, value, lines)
-				if err != nil {
-					fmt.Fprintf(os.Stderr,
-						"Couldn't push message to Redis: %s\n", err.Error())
-				}
-
-				err = r.compress(conf, value, lines)
+				err := r.compress(conf, value, lines)
 				if err != nil {
 					fmt.Fprintf(os.Stderr,
 						"Couldn't compress message to Redis: %s\n", err.Error())
@@ -145,24 +143,4 @@ func (r *Receiver) handleMessage() {
 			}
 		}
 	}
-}
-
-func (r *Receiver) pushAndTrim(conf *IndexConf, value string, lines [][]byte) error {
-	conn := r.connPool.Get()
-	defer conn.Close()
-
-	key := buildKey(conf.key, value)
-	conn.Send("MULTI")
-
-	// push the line in and trim the list to its maximum length
-	for _, line := range lines {
-		conn.Send("LPUSH", key, line)
-	}
-
-	conn.Send("LTRIM", key, 0, conf.maxSize-1)
-
-	conn.Send("EXPIRE", key, CompressBuffer)
-
-	_, err := conn.Do("EXEC")
-	return err
 }

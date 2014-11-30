@@ -3,72 +3,11 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io/ioutil"
 	"testing"
 
 	"github.com/garyburd/redigo/redis"
 )
-
-func TestMessageBuffer(t *testing.T) {
-	setup(t)
-
-	subject := NewReceiver(connPool)
-
-	line := "request_id=req1"
-	err := subject.pushAndTrim(conf, "req1", [][]byte{[]byte(line)})
-	if err != nil {
-		t.Error(err)
-	}
-
-	conn := connPool.Get()
-	defer conn.Close()
-
-	key := buildKey("request_id", "req1")
-
-	actual := redisList(t, conn, key)[0]
-	if line != actual {
-		t.Errorf("Expected buffer %v, got %v\n", line, actual)
-	}
-
-	ttl, err := redis.Int(conn.Do("TTL", key))
-	if err != nil {
-		t.Error(err)
-	}
-
-	if ttl < (CompressBuffer-10) || ttl > CompressBuffer {
-		t.Errorf("Expected ttl %v, got %v\n", CompressBuffer, ttl)
-	}
-}
-
-func TestMessageBufferEviction(t *testing.T) {
-	setup(t)
-
-	subject := NewReceiver(connPool)
-
-	for i := 0; i < conf.maxSize; i++ {
-		err := subject.pushAndTrim(conf, "req1",
-			[][]byte{[]byte(fmt.Sprintf("request_id=req1 line=%i", i))})
-		if err != nil {
-			t.Error(err)
-		}
-	}
-
-	conn := connPool.Get()
-	defer conn.Close()
-
-	key := buildKey("request_id", "req1")
-
-	actual, err := redis.Int(conn.Do("LLEN", key))
-	if err != nil {
-		t.Error(err)
-	}
-
-	if conf.maxSize != actual {
-		t.Errorf("Expected buffer of size %v, got %v\n",
-			conf.maxSize, actual)
-	}
-}
 
 func TestMessageCompression(t *testing.T) {
 	setup(t)
