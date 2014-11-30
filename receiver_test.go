@@ -23,9 +23,9 @@ func TestBuildGroups(t *testing.T) {
 			},
 		},
 		&LogMessage{
-			data: []byte("request_id=req1 line=2"),
+			data: []byte("request_id=req1,req2 line=2"),
 			pairs: map[string]string{
-				"request_id": "req1",
+				"request_id": "req1,req2",
 				"line": "2",
 			},
 		},
@@ -54,8 +54,8 @@ func TestBuildGroups(t *testing.T) {
 	}
 		
 	lines = confGroup["req2"]
-	if len(lines) != 1 {
-		t.Errorf("Expected req1 lines length %v, got %v\n", 1, len(lines))
+	if len(lines) != 2 {
+		t.Errorf("Expected req2 lines length %v, got %v\n", 2, len(lines))
 	}
 }
 

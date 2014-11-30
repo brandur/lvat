@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/garyburd/redigo/redis"
 )
@@ -54,12 +55,14 @@ func (r *Receiver) buildGroups(messages []*LogMessage) StorageGroup {
 					groups[conf] = make(map[string][][]byte)
 				}
 
-				if _, ok = groups[conf][value]; !ok {
-					groups[conf][value] = make([][]byte, 0, 1)
-				}
+				for _, subValue := range strings.Split(value, ",") {
+					if _, ok = groups[conf][subValue]; !ok {
+						groups[conf][subValue] = make([][]byte, 0, 1)
+					}
 
-				groups[conf][value] =
-					append(groups[conf][value], message.data)
+					groups[conf][subValue] =
+						append(groups[conf][subValue], message.data)
+				}
 			}
 		}
 	}
