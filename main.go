@@ -27,6 +27,7 @@ var (
 	connPool     *redis.Pool
 	receiver     *Receiver
 	retriever    *Retriever
+	verbose      bool
 )
 
 type IndexConf struct {
@@ -86,9 +87,12 @@ func receiveMessage(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, message)
 	}
 
+	printVerbose("queue_messages num=%i\n", len(messages))
+
 	// send through the whole set of messages at once to reduce the
 	// probability of inter-routine contention
 	receiver.MessagesChan <- messages
+	printVerbose("queue size=%i\n", len(receiver.MessagesChan))
 }
 
 func lookupMessages(w http.ResponseWriter, r *http.Request) {
@@ -164,6 +168,10 @@ func main() {
 		goto exit
 	}
 
+    if os.Getenv("VERBOSE") == "true" {
+		verbose = true
+	}
+
 	connPool = redis.NewPool(redisConnect(redisUrl), Concurrency)
 	defer connPool.Close()
 
@@ -197,6 +205,12 @@ exit:
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.Error()+"\n")
 		defer os.Exit(1)
+	}
+}
+
+func printVerbose(message string, args ...interface{}) {
+	if verbose {
+		fmt.Printf(message, args...)
 	}
 }
 
